@@ -1,4 +1,4 @@
-package iooferto.pocminios3select;
+package io.oferto.pocminios3select;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

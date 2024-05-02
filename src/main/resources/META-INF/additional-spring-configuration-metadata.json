@@ -1,0 +1,27 @@
+{"properties": [
+  {
+    "name": "object-storage.host",
+    "type": "java.lang.String",
+    "description": "A description for 'object-storage.host'"
+  },
+  {
+    "name": "object-storage.port",
+    "type": "java.lang.String",
+    "description": "A description for 'object-storage.port'"
+  },
+  {
+    "name": "object-storage.accessKey",
+    "type": "java.lang.String",
+    "description": "A description for 'object-storage.accessKey'"
+  },
+  {
+    "name": "object-storage.secretKey",
+    "type": "java.lang.String",
+    "description": "A description for 'object-storage.secretKey'"
+  },
+  {
+    "name": "object-storage.disableTls",
+    "type": "java.lang.String",
+    "description": "A description for 'object-storage.disableTls'"
+  }
+]}

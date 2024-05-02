@@ -1,0 +1,13 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: poc-minio-s3-select
+      
+object-storage:        
+    host: localhost
+    port: 9000
+    accessKey: gl8rbGORHSpxmg1V
+    secretKey: 8WphDMckYqRb29s43SzA4trsV2GgaQRc
+    disableTls: yes
