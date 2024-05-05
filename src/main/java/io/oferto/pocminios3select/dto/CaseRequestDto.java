@@ -6,5 +6,4 @@ import lombok.Getter;
 public class CaseRequestDto {
 	private String bucketName;
 	private String keyObjectName;
-	private String spaceId;
 }

@@ -16,7 +16,8 @@ import io.oferto.pocminios3select.service.AnnotationService;
 import io.oferto.pocminios3select.dto.ExpressionRequestDto;
 import io.oferto.pocminios3select.dto.CaseRequestDto;
 import io.oferto.pocminios3select.model.Expression;
-import io.oferto.pocminios3select.model.Projection;
+import io.oferto.pocminios3select.model.ProjectionDual;
+import io.oferto.pocminios3select.model.ProjectionPrimal;
 
 @Slf4j
 @RestController
@@ -46,14 +47,14 @@ public class AnnotationController {
 		}			
 	}
 	
-	@RequestMapping(value = "/projections",method = { RequestMethod.GET }, produces = "application/json")
-	public ResponseEntity<?> findAllProjectionsBySpace(@RequestBody CaseRequestDto caseRequestDto) {
-		List<Projection> projections;
+	@RequestMapping(value = "/projections/primal",method = { RequestMethod.GET }, produces = "application/json")
+	public ResponseEntity<?> findAllPrimalProjections(@RequestBody CaseRequestDto caseRequestDto) {
+		List<ProjectionPrimal> projections;
 		
 		try {
-			projections = (List<Projection>) annotationService.findAllProjectionsBySpace(caseRequestDto);
+			projections = (List<ProjectionPrimal>) annotationService.findAllPrimalProjectionsBySpace(caseRequestDto);
 			
-			log.debug("findAllProjectionsBySpace: found {} projections", projections.size());
+			log.debug("findAllPrimalProjectionsBySpace: found {} projections", projections.size());
 			
 			return ResponseEntity
 		            .status(HttpStatus.OK)
@@ -66,4 +67,25 @@ public class AnnotationController {
 		            .body(e.getMessage());
 		}			
 	}
+	
+	@RequestMapping(value = "/projections/dual",method = { RequestMethod.GET }, produces = "application/json")
+	public ResponseEntity<?> findAllDualProjections(@RequestBody CaseRequestDto caseRequestDto) {
+		List<ProjectionDual> projections;
+		
+		try {
+			projections = (List<ProjectionDual>) annotationService.findAllDualProjectionsBySpace(caseRequestDto);
+			
+			log.debug("findAllDualProjectionsBySpace: found {} projections", projections.size());
+			
+			return ResponseEntity
+		            .status(HttpStatus.OK)
+		            .body(projections);
+		} catch (Exception e) {
+			e.printStackTrace();
+			
+			return ResponseEntity
+		            .status(HttpStatus.INTERNAL_SERVER_ERROR)
+		            .body(e.getMessage());
+		}			
+	}	
 }

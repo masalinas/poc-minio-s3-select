@@ -48,7 +48,8 @@ import io.oferto.pocminios3select.config.ObjectStorageConfig;
 import io.oferto.pocminios3select.dto.ExpressionRequestDto;
 import io.oferto.pocminios3select.dto.CaseRequestDto;
 import io.oferto.pocminios3select.model.Expression;
-import io.oferto.pocminios3select.model.Projection;
+import io.oferto.pocminios3select.model.ProjectionDual;
+import io.oferto.pocminios3select.model.ProjectionPrimal;
 
 @Slf4j
 @Service
@@ -197,10 +198,10 @@ public class AnnotationService {
 		return expressions;			
 	}
 	
-	public List<Projection> findAllProjectionsBySpace(CaseRequestDto caseRequestDto) throws Exception {
-		List<Projection> projections = new ArrayList<Projection>();
-		 
-		log.debug("findAllProjectionsBySpace: found projections with space Id: {}", caseRequestDto.getSpaceId());
+	public List<ProjectionPrimal> findAllPrimalProjectionsBySpace(CaseRequestDto caseRequestDto) throws Exception {
+		List<ProjectionPrimal> projectionsPrimal = new ArrayList<ProjectionPrimal>();
+		 		
+		log.debug("findAllPrimalProjectionsBySpace: found projections with space Id: {}", "primal");
 		
 		long start = System.currentTimeMillis();
 		NumberFormat formatter = new DecimalFormat("#0.00000");
@@ -258,14 +259,10 @@ public class AnnotationService {
             
             // parsing result to disk and show timing
             start = System.currentTimeMillis();
-            projections = convertToProjection(resultInputStream, Projection.class);
+            projectionsPrimal = convertToProjection(resultInputStream, ProjectionPrimal.class);
+            
             end = System.currentTimeMillis();
             
-            // copy file to disk and show timing
-            /*start = System.currentTimeMillis();
-            copy(resultInputStream, fileOutputStream);
-            end = System.currentTimeMillis();*/
-
             System.out.print("Execution Persist time is " + formatter.format((end - start) / 1000d) + " seconds");
         }
                     
@@ -277,6 +274,85 @@ public class AnnotationService {
             throw new Exception("S3 Select request was incomplete as End Event was not received.");
         }
         
-		return projections;			
+        return projectionsPrimal;
 	}	
+	
+	public List<ProjectionDual> findAllDualProjectionsBySpace(CaseRequestDto caseRequestDto) throws Exception {
+		List<ProjectionDual> projectionsDual = new ArrayList<ProjectionDual>();
+		
+		log.debug("findAllDualProjectionsBySpace: found projections with space Id: {}", "dual");
+		
+		long start = System.currentTimeMillis();
+		NumberFormat formatter = new DecimalFormat("#0.00000");
+		
+		// disable cert validation
+		System.setProperty(DISABLE_CERT_CHECKING_SYSTEM_PROPERTY, objectStorageConfig.getDisableTls().toString());
+				
+		ClientConfiguration clientConfig = new ClientConfiguration(); 
+		clientConfig.setProtocol(Protocol.HTTPS);
+				
+		AWSCredentials credentials = new BasicAWSCredentials(objectStorageConfig.getAccessKey(), objectStorageConfig.getSecretKey());
+		
+		final AmazonS3 s3Client = AmazonS3ClientBuilder
+				.standard()
+    		   		.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(objectStorageConfig.getHost() + ":" + objectStorageConfig.getPort(), Regions.US_EAST_1.name()))	    		   		
+    		   		.withPathStyleAccessEnabled(true)	    		   		
+    		   		.withClientConfiguration(clientConfig)
+    		   		.withCredentials(new AWSStaticCredentialsProvider(credentials))	    		   		
+    		   .build();	       
+	       
+		String query = "select s.* from s3object s";
+		
+		boolean isGzip = false;
+		if (caseRequestDto.getKeyObjectName().contains(".gz"))
+			isGzip = true;
+		
+        SelectObjectContentRequest request = generateBaseCSVRequest(caseRequestDto.getBucketName(), caseRequestDto.getKeyObjectName(), isGzip, query);
+        final AtomicBoolean isResultComplete = new AtomicBoolean(false);
+
+        try (OutputStream fileOutputStream = new FileOutputStream(new File ("/home/miguel/temp/result.csv"));
+        		SelectObjectContentResult result = s3Client.selectObjectContent(request)) {
+        	InputStream resultInputStream = result.getPayload().getRecordsInputStream(
+	    		new SelectObjectContentEventVisitor() {
+	    			@Override
+	                public void visit(SelectObjectContentEvent.StatsEvent event) {
+	    				System.out.println(
+	    						"Received Stats, Bytes Scanned: " + event.getDetails().getBytesScanned()
+	    						+  " Bytes Processed: " + event.getDetails().getBytesProcessed());
+	                }
+	
+	                /*
+	                 * An End Event informs that the request has finished successfully.
+	                 */
+	                @Override
+	                public void visit(SelectObjectContentEvent.EndEvent event) {
+	                	isResultComplete.set(true);
+	                    System.out.println("Received End Event. Result is complete.");
+	                }
+	            }
+	        );
+        	
+            // query finalize and show timing
+        	long end = System.currentTimeMillis();           
+            System.out.print("Execution time is " + formatter.format((end - start) / 1000d) + " seconds");
+            
+            // parsing result to disk and show timing
+            start = System.currentTimeMillis();
+            projectionsDual = convertToProjection(resultInputStream, ProjectionDual.class);
+            
+            end = System.currentTimeMillis();
+            
+            System.out.print("Execution Persist time is " + formatter.format((end - start) / 1000d) + " seconds");
+        }
+                    
+        /*
+         * The End Event indicates all matching records have been transmitted.
+         * If the End Event is not received, the results may be incomplete.
+         */
+        if (!isResultComplete.get()) {
+            throw new Exception("S3 Select request was incomplete as End Event was not received.");
+        }
+        
+        return projectionsDual;
+	}
 }
