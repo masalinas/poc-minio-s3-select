@@ -10,10 +10,10 @@
 	</parent>
 	
 	<groupId>io-oferto</groupId>
-	<artifactId>poc-minio-s3-select</artifactId>
+	<artifactId>poc-minio-s3-select-java</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	
-	<name>poc-minio-s3-select</name>
+	<name>poc-minio-s3-select-java</name>
 	<description>PoC Minio S3 Select</description>
 	
 	<properties>

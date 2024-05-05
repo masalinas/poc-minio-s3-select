@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: poc-minio-s3-select
+    name: poc-minio-s3-select-java
       
 object-storage:        
     host: localhost

@@ -35,37 +35,43 @@ import com.amazonaws.services.s3.model.SelectObjectContentEvent;
 import com.amazonaws.services.s3.model.SelectObjectContentEventVisitor;
 import com.amazonaws.services.s3.model.SelectObjectContentRequest;
 import com.amazonaws.services.s3.model.SelectObjectContentResult;
-import com.opencsv.bean.CsvToBean;
-import com.opencsv.bean.CsvToBeanBuilder;
 
 import static com.amazonaws.SDKGlobalConfiguration.DISABLE_CERT_CHECKING_SYSTEM_PROPERTY;
-import static com.amazonaws.util.IOUtils.copy;
+
+import com.opencsv.bean.CsvToBean;
+import com.opencsv.bean.CsvToBeanBuilder;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import io.oferto.pocminios3select.config.ObjectStorageConfig;
-import io.oferto.pocminios3select.dto.AnnotationRequestDto;
+import io.oferto.pocminios3select.dto.ExpressionRequestDto;
+import io.oferto.pocminios3select.dto.CaseRequestDto;
 import io.oferto.pocminios3select.model.Expression;
+import io.oferto.pocminios3select.model.Projection;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ExpressionService {
+public class AnnotationService {
 	private final ObjectStorageConfig objectStorageConfig;
 	    
-    private SelectObjectContentRequest generateBaseCSVRequest(String bucket, String key, String query) {
+    private SelectObjectContentRequest generateBaseCSVRequest(String bucket, String key, boolean isGzip, String query) {
         SelectObjectContentRequest request = new SelectObjectContentRequest();
         request.setBucketName(bucket);
         request.setKey(key);
         request.setExpression(query);
         request.setExpressionType(ExpressionType.SQL);
-        
+                
         InputSerialization inputSerialization = new InputSerialization();
         CSVInput cSVInput = new CSVInput();
         cSVInput.setFileHeaderInfo(FileHeaderInfo.USE);        
-        inputSerialization.setCsv(cSVInput);
-        inputSerialization.setCompressionType(CompressionType.NONE);
+        inputSerialization.setCsv(cSVInput);        
+        
+        if (isGzip)
+        	inputSerialization.setCompressionType(CompressionType.GZIP);
+        else 
+        	inputSerialization.setCompressionType(CompressionType.NONE);
         
         request.setInputSerialization(inputSerialization);
 
@@ -78,7 +84,7 @@ public class ExpressionService {
     }	
     
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public static <T> List<T> convertToModel(InputStream file, Class<T> responseType) {
+    public static <T> List<T> convertToExpression(InputStream file, Class<T> responseType) {
         List<T> models;
         try (Reader reader = new BufferedReader(new InputStreamReader(file))) {           
 			CsvToBean<?> csvToBean = new CsvToBeanBuilder(reader)
@@ -95,10 +101,28 @@ public class ExpressionService {
         return models;
     }
     
-	public List<Expression> findAllByAnnotation(AnnotationRequestDto requestAnnotationDto) throws Exception {
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public static <T> List<T> convertToProjection(InputStream file, Class<T> responseType) {
+        List<T> models;
+        try (Reader reader = new BufferedReader(new InputStreamReader(file))) {           
+			CsvToBean<?> csvToBean = new CsvToBeanBuilder(reader)
+                    .withType(responseType)
+                    .withIgnoreLeadingWhiteSpace(true)
+                    .withIgnoreEmptyLine(true)
+                    .build();
+            models = (List<T>) csvToBean.parse();
+        } catch (Exception ex) {
+            log.error("error parsing csv file {} ", ex);
+            throw new IllegalArgumentException(ex.getCause().getMessage());
+        }
+        
+        return models;
+    }
+    
+	public List<Expression> findAllExpressionsByAnnotation(ExpressionRequestDto expressionRequestDto) throws Exception {
 		List<Expression> expressions = new ArrayList<Expression>();
 		 
-		log.debug("findAllByAnnotation: found expressions with annotation Id: {}", requestAnnotationDto.getAnnotationId());
+		log.debug("findAllExpressionsByAnnotation: found expressions from annotation Id: {}", expressionRequestDto.getAnnotationId());
 		
 		long start = System.currentTimeMillis();
 		NumberFormat formatter = new DecimalFormat("#0.00000");
@@ -119,9 +143,13 @@ public class ExpressionService {
     		   		.withCredentials(new AWSStaticCredentialsProvider(credentials))	    		   		
     		   .build();	       
 	       
-		String query = "select s._1, s.\"" + requestAnnotationDto.getAnnotationId() + "\" from s3object s";
+		String query = "select s._1, s.\"" + expressionRequestDto.getAnnotationId() + "\" from s3object s";
 		
-        SelectObjectContentRequest request = generateBaseCSVRequest(requestAnnotationDto.getBucketName(), requestAnnotationDto.getKeyObjectName(), query);
+		boolean isGzip = false;
+		if (expressionRequestDto.getKeyObjectName().contains(".gz"))
+			isGzip = true;
+		
+        SelectObjectContentRequest request = generateBaseCSVRequest(expressionRequestDto.getBucketName(), expressionRequestDto.getKeyObjectName(), isGzip, query);
         final AtomicBoolean isResultComplete = new AtomicBoolean(false);
 
         try (OutputStream fileOutputStream = new FileOutputStream(new File ("/home/miguel/temp/result.csv"));
@@ -152,7 +180,85 @@ public class ExpressionService {
             
             // parsing result to disk and show timing
             start = System.currentTimeMillis();
-            expressions = convertToModel(resultInputStream, Expression.class);
+            expressions = convertToExpression(resultInputStream, Expression.class);
+            end = System.currentTimeMillis();
+            
+            System.out.print("Execution Persist time is " + formatter.format((end - start) / 1000d) + " seconds");
+        }
+                    
+        /*
+         * The End Event indicates all matching records have been transmitted.
+         * If the End Event is not received, the results may be incomplete.
+         */
+        if (!isResultComplete.get()) {
+            throw new Exception("S3 Select request was incomplete as End Event was not received.");
+        }
+        
+		return expressions;			
+	}
+	
+	public List<Projection> findAllProjectionsBySpace(CaseRequestDto caseRequestDto) throws Exception {
+		List<Projection> projections = new ArrayList<Projection>();
+		 
+		log.debug("findAllProjectionsBySpace: found projections with space Id: {}", caseRequestDto.getSpaceId());
+		
+		long start = System.currentTimeMillis();
+		NumberFormat formatter = new DecimalFormat("#0.00000");
+		
+		// disable cert validation
+		System.setProperty(DISABLE_CERT_CHECKING_SYSTEM_PROPERTY, objectStorageConfig.getDisableTls().toString());
+				
+		ClientConfiguration clientConfig = new ClientConfiguration(); 
+		clientConfig.setProtocol(Protocol.HTTPS);
+				
+		AWSCredentials credentials = new BasicAWSCredentials(objectStorageConfig.getAccessKey(), objectStorageConfig.getSecretKey());
+		
+		final AmazonS3 s3Client = AmazonS3ClientBuilder
+				.standard()
+    		   		.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(objectStorageConfig.getHost() + ":" + objectStorageConfig.getPort(), Regions.US_EAST_1.name()))	    		   		
+    		   		.withPathStyleAccessEnabled(true)	    		   		
+    		   		.withClientConfiguration(clientConfig)
+    		   		.withCredentials(new AWSStaticCredentialsProvider(credentials))	    		   		
+    		   .build();	       
+	       
+		String query = "select s.* from s3object s";
+		
+		boolean isGzip = false;
+		if (caseRequestDto.getKeyObjectName().contains(".gz"))
+			isGzip = true;
+		
+        SelectObjectContentRequest request = generateBaseCSVRequest(caseRequestDto.getBucketName(), caseRequestDto.getKeyObjectName(), isGzip, query);
+        final AtomicBoolean isResultComplete = new AtomicBoolean(false);
+
+        try (OutputStream fileOutputStream = new FileOutputStream(new File ("/home/miguel/temp/result.csv"));
+        		SelectObjectContentResult result = s3Client.selectObjectContent(request)) {
+        	InputStream resultInputStream = result.getPayload().getRecordsInputStream(
+	    		new SelectObjectContentEventVisitor() {
+	    			@Override
+	                public void visit(SelectObjectContentEvent.StatsEvent event) {
+	    				System.out.println(
+	    						"Received Stats, Bytes Scanned: " + event.getDetails().getBytesScanned()
+	    						+  " Bytes Processed: " + event.getDetails().getBytesProcessed());
+	                }
+	
+	                /*
+	                 * An End Event informs that the request has finished successfully.
+	                 */
+	                @Override
+	                public void visit(SelectObjectContentEvent.EndEvent event) {
+	                	isResultComplete.set(true);
+	                    System.out.println("Received End Event. Result is complete.");
+	                }
+	            }
+	        );
+        	
+            // query finalize and show timing
+        	long end = System.currentTimeMillis();           
+            System.out.print("Execution time is " + formatter.format((end - start) / 1000d) + " seconds");
+            
+            // parsing result to disk and show timing
+            start = System.currentTimeMillis();
+            projections = convertToProjection(resultInputStream, Projection.class);
             end = System.currentTimeMillis();
             
             // copy file to disk and show timing
@@ -171,6 +277,6 @@ public class ExpressionService {
             throw new Exception("S3 Select request was incomplete as End Event was not received.");
         }
         
-		return expressions;			
-	}
+		return projections;			
+	}	
 }
