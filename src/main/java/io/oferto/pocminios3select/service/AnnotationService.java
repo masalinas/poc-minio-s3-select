@@ -56,7 +56,7 @@ import io.oferto.pocminios3select.model.ProjectionPrimal;
 @RequiredArgsConstructor
 public class AnnotationService {
 	private final ObjectStorageConfig objectStorageConfig;
-	    
+	
     private SelectObjectContentRequest generateBaseCSVRequest(String bucket, String key, boolean isGzip, String query) {
         SelectObjectContentRequest request = new SelectObjectContentRequest();
         request.setBucketName(bucket);
@@ -142,8 +142,9 @@ public class AnnotationService {
     		   		.withPathStyleAccessEnabled(true)	    		   		
     		   		.withClientConfiguration(clientConfig)
     		   		.withCredentials(new AWSStaticCredentialsProvider(credentials))	    		   		
-    		   .build();	       
-	       
+    		   .build();
+				
+		// request annotation expressions
 		String query = "select s._1, s.\"" + expressionRequestDto.getAnnotationId() + "\" from s3object s";
 		
 		boolean isGzip = false;
@@ -152,37 +153,45 @@ public class AnnotationService {
 		
         SelectObjectContentRequest request = generateBaseCSVRequest(expressionRequestDto.getBucketName(), expressionRequestDto.getKeyObjectName(), isGzip, query);
         final AtomicBoolean isResultComplete = new AtomicBoolean(false);
-
-        try (OutputStream fileOutputStream = new FileOutputStream(new File ("/home/miguel/temp/result.csv"));
-        		SelectObjectContentResult result = s3Client.selectObjectContent(request)) {
+                      
+        try (SelectObjectContentResult result = s3Client.selectObjectContent(request)) {        	
         	InputStream resultInputStream = result.getPayload().getRecordsInputStream(
 	    		new SelectObjectContentEventVisitor() {
+	    			int totBytes = 0;
+	    			
 	    			@Override
 	                public void visit(SelectObjectContentEvent.StatsEvent event) {
 	    				System.out.println(
 	    						"Received Stats, Bytes Scanned: " + event.getDetails().getBytesScanned()
 	    						+  " Bytes Processed: " + event.getDetails().getBytesProcessed());
+	    				
+	    				System.out.println(
+	    						"Received Stats, Bytes Returned: " + event.getDetails().getBytesReturned());	    				
 	                }
 	
+	    			@Override
+	                public void visit(SelectObjectContentEvent.RecordsEvent event) {
+	    				totBytes = totBytes + event.getPayload().array().length;
+	    				    					    				
+	    				System.out.println(
+	    						"Received RecordsEvent, Bytes Scanned: " + totBytes);
+	                }
+	    				    			
 	                /*
 	                 * An End Event informs that the request has finished successfully.
 	                 */
 	                @Override
-	                public void visit(SelectObjectContentEvent.EndEvent event) {
+	                public void visit(SelectObjectContentEvent.EndEvent event) {	                		                	
 	                	isResultComplete.set(true);
 	                    System.out.println("Received End Event. Result is complete.");
 	                }
 	            }
 	        );
-        	
-            // query finalize and show timing
-        	long end = System.currentTimeMillis();           
-            System.out.print("Execution time is " + formatter.format((end - start) / 1000d) + " seconds");
-            
-            // parsing result to disk and show timing
+        	                  	
+            // parsing byte array result to entities collection        	
             start = System.currentTimeMillis();
             expressions = convertToExpression(resultInputStream, Expression.class);
-            end = System.currentTimeMillis();
+            long end = System.currentTimeMillis();
             
             System.out.print("Execution Persist time is " + formatter.format((end - start) / 1000d) + " seconds");
         }
@@ -195,7 +204,7 @@ public class AnnotationService {
             throw new Exception("S3 Select request was incomplete as End Event was not received.");
         }
         
-		return expressions;			
+		return expressions;
 	}
 	
 	public List<ProjectionPrimal> findAllPrimalProjectionsBySpace(CaseRequestDto caseRequestDto) throws Exception {
@@ -321,6 +330,13 @@ public class AnnotationService {
 	    						+  " Bytes Processed: " + event.getDetails().getBytesProcessed());
 	                }
 	
+	    			@Override
+	                public void visit(SelectObjectContentEvent.ProgressEvent event) {
+	    				System.out.println(
+	    						"Received Progress, Bytes Scanned: " + event.getDetails().getBytesScanned()
+	    						+  " Bytes Processed: " + event.getDetails().getBytesProcessed());
+	                }
+	    			
 	                /*
 	                 * An End Event informs that the request has finished successfully.
 	                 */

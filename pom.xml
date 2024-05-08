@@ -10,14 +10,15 @@
 	</parent>
 	
 	<groupId>io-oferto</groupId>
-	<artifactId>poc-minio-s3-select-java</artifactId>
+	<artifactId>poc-minio-s3-select-java-sdk1</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	
 	<name>poc-minio-s3-select-java</name>
-	<description>PoC Minio S3 Select</description>
+	<description>PoC Minio S3 Select SDK1</description>
 	
 	<properties>
-		<java.version>17</java.version>
+		<java.version>17</java.version>		
+		<aws-java-sdk-s3>1.12.716</aws-java-sdk-s3>
 	</properties>
 	
 	<dependencies>
@@ -25,11 +26,21 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
-		<dependency>
+		<!--<dependency>
+		    <groupId>software.amazon.awssdk</groupId>
+		    <artifactId>s3</artifactId>
+		    <version>2.25.46</version>    	
+		</dependency>-->
+		<!--<dependency>
 		    <groupId>io.minio</groupId>
 		    <artifactId>spark-select_2.11</artifactId>
 		    <version>2.1</version>
-		</dependency>
+		</dependency>-->
+		<dependency>
+		    <groupId>com.amazonaws</groupId>
+		    <artifactId>aws-java-sdk-s3</artifactId>
+		    <version>${aws-java-sdk-s3}</version>
+		</dependency>		
 		<dependency>
 		    <groupId>com.opencsv</groupId>
 		    <artifactId>opencsv</artifactId>
@@ -39,6 +50,11 @@
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
 			<optional>true</optional>
+		</dependency>
+		<dependency>
+		    <groupId>com.google.guava</groupId>
+		    <artifactId>guava</artifactId>
+		    <version>33.1.0-jre</version>
 		</dependency>
 		
 		<dependency>
