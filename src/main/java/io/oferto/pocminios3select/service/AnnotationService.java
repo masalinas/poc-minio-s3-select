@@ -85,7 +85,7 @@ public class AnnotationService {
     }	
     
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public static <T> List<T> convertToExpression(InputStream file, Class<T> responseType) {
+    private static <T> List<T> convertToExpression(InputStream file, Class<T> responseType) {
         List<T> models;
         try (Reader reader = new BufferedReader(new InputStreamReader(file))) {           
 			CsvToBean<?> csvToBean = new CsvToBeanBuilder(reader)
@@ -103,7 +103,7 @@ public class AnnotationService {
     }
     
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public static <T> List<T> convertToProjection(InputStream file, Class<T> responseType) {
+    private static <T> List<T> convertToProjection(InputStream file, Class<T> responseType) {
         List<T> models;
         try (Reader reader = new BufferedReader(new InputStreamReader(file))) {           
 			CsvToBean<?> csvToBean = new CsvToBeanBuilder(reader)
