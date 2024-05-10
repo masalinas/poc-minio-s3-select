@@ -193,7 +193,7 @@ public class AnnotationService {
             expressions = convertToExpression(resultInputStream, Expression.class);
             long end = System.currentTimeMillis();
             
-            System.out.print("Execution Persist time is " + formatter.format((end - start) / 1000d) + " seconds");
+            System.out.print("S3 Select execution time is " + formatter.format((end - start) / 1000d) + " seconds");
         }
                     
         /*
